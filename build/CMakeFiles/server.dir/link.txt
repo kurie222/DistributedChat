@@ -1,1 +1,0 @@
-/usr/bin/c++ -g -rdynamic CMakeFiles/server.dir/test_muduo.cpp.o -o /home/kuro/code/DistributedChat/bin/server   -L/home/kuro/code/DistributedChat/lib  -Wl,-rpath,/home/kuro/code/DistributedChat/lib -lmuduo_net -lmuduo_base -lpthread 

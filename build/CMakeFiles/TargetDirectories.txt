@@ -1,3 +1,0 @@
-/home/kuro/code/DistributedChat/build/CMakeFiles/server.dir
-/home/kuro/code/DistributedChat/build/CMakeFiles/edit_cache.dir
-/home/kuro/code/DistributedChat/build/CMakeFiles/rebuild_cache.dir
