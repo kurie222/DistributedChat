@@ -1,3 +1,6 @@
 /.vscode/
+/bin/
+/build/
 /build/release-cpp11/
 *.o
+.clang-format
