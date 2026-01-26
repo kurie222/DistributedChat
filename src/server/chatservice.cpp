@@ -26,6 +26,12 @@ ChatService::ChatService()
                              std::bind(&ChatService::oneChat, this, _1, _2, _3));
     msg_handler_map_.emplace(MsgType::ADD_FRIEND_MSG,
                              std::bind(&ChatService::addFriend, this, _1, _2, _3));
+    msg_handler_map_.emplace(MsgType::CREATE_GROUP_MSG,
+                             std::bind(&ChatService::createGroup, this, _1, _2, _3));
+    msg_handler_map_.emplace(MsgType::ADD_GROUP_MSG,
+                             std::bind(&ChatService::addGroup, this, _1, _2, _3));
+    msg_handler_map_.emplace(MsgType::GROUP_CHAT_MSG,
+                             std::bind(&ChatService::groupChat, this, _1, _2, _3));
 }
 
 MsgHandler ChatService::getHandler(MsgType msg_type)
@@ -198,4 +204,47 @@ void ChatService::addFriend(const TcpConnectionPtr &conn,json &js,Timestamp time
     int friendid = js["friendid"].get<int>();
 
     friend_model_.insert(userid, friendid);
+}
+
+void ChatService::createGroup(const TcpConnectionPtr &conn,json &js,Timestamp time)
+{
+    int userid = js["id"].get<int>();
+    std::string groupname = js["groupname"];
+    std::string groupdesc = js["groupdesc"];
+
+    group_model_.createGroup(userid, groupname, groupdesc);
+}
+
+void ChatService::addGroup(const TcpConnectionPtr &conn,json &js,Timestamp time)
+{
+    int userid = js["id"].get<int>();
+    int groupid = js["groupid"].get<int>();
+
+    group_model_.addGroup(userid, groupid, "normal");
+}
+
+void ChatService::groupChat(const TcpConnectionPtr &conn,json &js,Timestamp time)
+{
+    int userid = js["id"].get<int>();
+    int groupid = js["groupid"].get<int>();
+
+    // 查询群组成员列表
+    std::vector<int> userids = group_model_.queryGroupUsers(userid, groupid);
+    {
+        std::lock_guard<std::mutex> lock(conn_mutex_);
+        for (int id : userids)
+        {
+            auto it = user_conn_map_.find(id);
+            if (it != user_conn_map_.end())
+            {
+                // 转发消息
+                it->second->send(js.dump());
+            }
+            else
+            {
+                // 存储离线消息
+                offline_message_model_.insert(id, js.dump());
+            }
+        }
+    }
 }

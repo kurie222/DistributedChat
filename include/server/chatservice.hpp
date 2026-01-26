@@ -7,6 +7,7 @@
 #include "user_model.hpp"
 #include "offline_message_model.hpp"
 #include "friend_model.hpp"
+#include "group_model.hpp"
 #include <functional>
 #include <unordered_map>
 #include <mutex>
@@ -31,6 +32,12 @@ public:
     void oneChat(const TcpConnectionPtr& conn, json& js, Timestamp time);
     // 添加好友业务
     void addFriend(const TcpConnectionPtr& conn, json& js, Timestamp time);
+    // 创建群组业务
+    void createGroup(const TcpConnectionPtr& conn, json& js, Timestamp time);
+    // 加入群组业务
+    void addGroup(const TcpConnectionPtr& conn, json& js, Timestamp time);
+    // 群组聊天业务
+    void groupChat(const TcpConnectionPtr& conn, json& js, Timestamp time);
     // 获取消息对应的处理器
     MsgHandler getHandler(MsgType msg_type);
     // 处理客户端异常退出
@@ -44,16 +51,15 @@ private:
     ChatService& operator=(const ChatService&) = delete;
     // 消息id和其对应的业务处理方法
     std::unordered_map<MsgType, MsgHandler> msg_handler_map_;
-    // 数据操作类对象
-    UserModel user_model_;
-    //存储在线用户的连接
-    std::unordered_map<int, TcpConnectionPtr> user_conn_map_;
     // 互斥锁，保护user_conn_map_
     std::mutex conn_mutex_;
-    // 离线消息数据操作类对象
+
+    // 数据操作类对象
+    UserModel user_model_;
+    std::unordered_map<int, TcpConnectionPtr> user_conn_map_;
     OfflineMessageModel offline_message_model_;
-    // 好友信息操作类对象
     FriendModel friend_model_;
+    GroupModel group_model_;
 };
 
 #endif // CHAT_SERVICE_HPP

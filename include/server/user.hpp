@@ -18,7 +18,7 @@ public:
     std::string getPassword() const { return password_; }
     std::string getState() const { return state_; }
     
-private:
+protected:
     int id_;
     std::string name_;
     std::string password_;
