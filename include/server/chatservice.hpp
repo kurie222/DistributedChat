@@ -6,6 +6,7 @@
 #include "public.hpp"
 #include "user_model.hpp"
 #include "offline_message_model.hpp"
+#include "friend_model.hpp"
 #include <functional>
 #include <unordered_map>
 #include <mutex>
@@ -28,6 +29,8 @@ public:
     void reg(const TcpConnectionPtr& conn, json& js, Timestamp time);
     //一对一聊天方法
     void oneChat(const TcpConnectionPtr& conn, json& js, Timestamp time);
+    // 添加好友业务
+    void addFriend(const TcpConnectionPtr& conn, json& js, Timestamp time);
     // 获取消息对应的处理器
     MsgHandler getHandler(MsgType msg_type);
     // 处理客户端异常退出
@@ -49,6 +52,8 @@ private:
     std::mutex conn_mutex_;
     // 离线消息数据操作类对象
     OfflineMessageModel offline_message_model_;
+    // 好友信息操作类对象
+    FriendModel friend_model_;
 };
 
 #endif // CHAT_SERVICE_HPP

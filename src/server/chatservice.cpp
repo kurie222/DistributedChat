@@ -5,6 +5,7 @@
 #include <functional>
 #include <muduo/base/Logging.h>
 #include <string>
+#include <map>
 
 // 获取单例对象的接口函数
 ChatService* ChatService::instance()
@@ -23,6 +24,8 @@ ChatService::ChatService()
                              std::bind(&ChatService::reg, this, _1, _2, _3));
     msg_handler_map_.emplace(MsgType::ONE_CHAT_MSG,
                              std::bind(&ChatService::oneChat, this, _1, _2, _3));
+    msg_handler_map_.emplace(MsgType::ADD_FRIEND_MSG,
+                             std::bind(&ChatService::addFriend, this, _1, _2, _3));
 }
 
 MsgHandler ChatService::getHandler(MsgType msg_type)
@@ -82,6 +85,21 @@ void ChatService::login(const TcpConnectionPtr& conn, json& js, Timestamp time)
             response["offlinemsg"] = offline_msgs;
             // 删除离线消息
             offline_message_model_.remove(id);
+        }
+        // 查询好友列表
+        std::vector<User> friend_list = friend_model_.query(id);
+        if (!friend_list.empty())
+        {
+            std::vector<json> friends_json;
+            for (const auto& friend_user : friend_list)
+            {
+                json friend_js;
+                friend_js["id"] = friend_user.getId();
+                friend_js["name"] = friend_user.getName();
+                friend_js["state"] = friend_user.getState();
+                friends_json.push_back(friend_js);
+            }
+            response["friends"] = friends_json;
         }
 
         conn->send(response.dump());
@@ -172,4 +190,12 @@ void ChatService::oneChat(const TcpConnectionPtr& conn, json& js, Timestamp time
 void ChatService::resetState()
 {
     user_model_.resetState();
+}
+
+void ChatService::addFriend(const TcpConnectionPtr &conn,json &js,Timestamp time)
+{
+    int userid = js["id"].get<int>();
+    int friendid = js["friendid"].get<int>();
+
+    friend_model_.insert(userid, friendid);
 }
