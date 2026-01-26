@@ -1,2 +1,3 @@
 # DistributedChat
 集群网络聊天服务器项目
+TODO:实现分布式
