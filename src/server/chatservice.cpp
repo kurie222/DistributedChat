@@ -1,5 +1,6 @@
 #include "chatservice.hpp"
 #include "public.hpp"
+#include "offline_message_model.hpp"
 #include <format>
 #include <functional>
 #include <muduo/base/Logging.h>
@@ -20,6 +21,8 @@ ChatService::ChatService()
                              std::bind(&ChatService::login, this, _1, _2, _3));
     msg_handler_map_.emplace(MsgType::REG_MSG,
                              std::bind(&ChatService::reg, this, _1, _2, _3));
+    msg_handler_map_.emplace(MsgType::ONE_CHAT_MSG,
+                             std::bind(&ChatService::oneChat, this, _1, _2, _3));
 }
 
 MsgHandler ChatService::getHandler(MsgType msg_type)
@@ -42,7 +45,56 @@ MsgHandler ChatService::getHandler(MsgType msg_type)
 
 void ChatService::login(const TcpConnectionPtr& conn, json& js, Timestamp time)
 {
-    LOG_INFO << "do login service!";
+    int id = js["id"].get<int>();
+    std::string password = js["password"];
+
+    User user = user_model_.query(id);
+    if (user.getId() != -1 && user.getPassword() == password)
+    {
+        if (user.getState() == "online")
+        {
+            // 用户已经登录，不能重复登录
+            json response;
+            response["msgid"] = static_cast<int>(MsgType::LOGIN_MSG_ACK);
+            response["errno"] = 2; // 2表示用户已经登录
+            response["errmsg"] = "用户已经登录，不能重复登录";
+            conn->send(response.dump());
+            return;
+        }
+        // 登录成功
+        {
+            std::lock_guard<std::mutex> lock(conn_mutex_);
+            user_conn_map_.insert({id, conn});
+        }
+
+        user.setState("online");
+        user_model_.updateState(user);
+
+        json response;
+        response["msgid"] = static_cast<int>(MsgType::LOGIN_MSG_ACK);
+        response["id"] = user.getId();
+        response["name"] = user.getName();
+        response["errno"] = 0; // 0表示成功
+        // 查询是否有离线消息
+        std::vector<std::string> offline_msgs = offline_message_model_.query(id);
+        if (!offline_msgs.empty())
+        {
+            response["offlinemsg"] = offline_msgs;
+            // 删除离线消息
+            offline_message_model_.remove(id);
+        }
+
+        conn->send(response.dump());
+    }
+    else
+    {
+        // 登录失败
+        json response;
+        response["msgid"] = static_cast<int>(MsgType::LOGIN_MSG_ACK);
+        response["errno"] = 1; // 1表示失败
+        response["errmsg"] = "用户名或密码错误";
+        conn->send(response.dump());
+    }
 }
 void ChatService::reg(const TcpConnectionPtr& conn, json& js, Timestamp time)
 {
@@ -53,7 +105,7 @@ void ChatService::reg(const TcpConnectionPtr& conn, json& js, Timestamp time)
     user.setName(name);
     user.setPassword(password);
     bool state = user_model_.insert(user);
-    if(state)
+    if (state)
     {
         // 注册成功
         json response;
@@ -70,4 +122,54 @@ void ChatService::reg(const TcpConnectionPtr& conn, json& js, Timestamp time)
         response["errno"] = 1;
         conn->send(response.dump());
     }
+}
+
+// 处理客户端异常退出
+void ChatService::clientCloseException(const TcpConnectionPtr& conn)
+{
+    User user;
+    {
+        std::lock_guard<std::mutex> lock(conn_mutex_);
+        for (auto it = user_conn_map_.begin(); it != user_conn_map_.end(); ++it)
+        {
+            if (it->second == conn)
+            {
+                // 从map中删除用户的连接信息
+                user = user_model_.query(it->first);
+                user_conn_map_.erase(it);
+                LOG_INFO << std::format("用户{}异常退出！", user.getId());
+                break;
+            }
+        }
+    }
+    // 修改用户的状态信息
+    if(user.getId() != -1)
+    {
+        user.setState("offline");
+        user_model_.updateState(user);
+        return;
+    }
+}
+
+// 一对一聊天方法
+void ChatService::oneChat(const TcpConnectionPtr& conn, json& js, Timestamp time)
+{
+    int to_id = js["to"].get<int>();
+    {
+        std::lock_guard<std::mutex> lock(conn_mutex_);
+        auto it = user_conn_map_.find(to_id);
+        if (it != user_conn_map_.end())
+        {
+            // 转发消息
+            it->second->send(js.dump());
+            return;
+        }
+    }
+    // 用户不在线，存储离线消息
+    offline_message_model_.insert(to_id, js.dump());
+}
+
+void ChatService::resetState()
+{
+    user_model_.resetState();
 }

@@ -17,7 +17,7 @@ public:
     std::string getName() const { return name_; }
     std::string getPassword() const { return password_; }
     std::string getState() const { return state_; }
-
+    
 private:
     int id_;
     std::string name_;
