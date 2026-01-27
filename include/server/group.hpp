@@ -15,9 +15,11 @@ public:
     void setId(int id) { id_ = id; }
     void setName(const std::string& name) { name_ = name; }
     void setDesc(const std::string& desc) { desc_ = desc; }
+    void setUsers(const std::vector<GroupUser>& users) { users_ = users; }
     int getId() const { return id_; }
     std::string getName() const { return name_; }   
     std::string getDesc() const { return desc_; }
+    std::vector<GroupUser> getUsers() const { return users_; }
 
 private:
     int id_;

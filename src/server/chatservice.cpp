@@ -108,6 +108,34 @@ void ChatService::login(const TcpConnectionPtr& conn, json& js, Timestamp time)
             response["friends"] = friends_json;
         }
 
+        // 查询群组列表
+        std::vector<Group> group_list = group_model_.queryGroups(id);
+        if (!group_list.empty())
+        {
+            std::vector<json> groups_json;
+            for (const auto& group : group_list)
+            {
+                json group_js;
+                group_js["id"] = group.getId();
+                group_js["name"] = group.getName();
+                group_js["desc"] = group.getDesc();
+                // 群组成员信息
+                std::vector<json> users_json;
+                for (const auto& user : group.getUsers())
+                {
+                    json user_js;
+                    user_js["id"] = user.getId();
+                    user_js["name"] = user.getName();
+                    user_js["role"] = user.getRole();
+                    user_js["state"] = user.getState();
+                    users_json.push_back(user_js);
+                }
+                group_js["users"] = users_json;
+                groups_json.push_back(group_js);
+            }
+            response["groups"] = groups_json;
+        }
+
         conn->send(response.dump());
     }
     else
@@ -225,7 +253,7 @@ void ChatService::addGroup(const TcpConnectionPtr &conn,json &js,Timestamp time)
 
 void ChatService::groupChat(const TcpConnectionPtr &conn,json &js,Timestamp time)
 {
-    int userid = js["id"].get<int>();
+    int userid = js["from"].get<int>();
     int groupid = js["groupid"].get<int>();
 
     // 查询群组成员列表
