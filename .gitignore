@@ -4,3 +4,4 @@
 /build/release-cpp11/
 *.o
 .clang-format
+!/build/compile.md
