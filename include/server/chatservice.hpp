@@ -8,6 +8,7 @@
 #include "offline_message_model.hpp"
 #include "friend_model.hpp"
 #include "group_model.hpp"
+#include "redis/redis.hpp"
 #include <functional>
 #include <unordered_map>
 #include <mutex>
@@ -44,6 +45,8 @@ public:
     void clientCloseException(const TcpConnectionPtr& conn);
     // 服务器异常，重置用户状态信息
     void resetState();
+    // 处理redis订阅消息
+    void handleRedisSubscribeMessage(int channel, std::string message);
 
 private:
     ChatService();
@@ -60,6 +63,9 @@ private:
     OfflineMessageModel offline_message_model_;
     FriendModel friend_model_;
     GroupModel group_model_;
+
+    // Redis操作对象
+    Redis redis_;
 };
 
 #endif // CHAT_SERVICE_HPP

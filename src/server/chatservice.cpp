@@ -32,6 +32,13 @@ ChatService::ChatService()
                              std::bind(&ChatService::addGroup, this, _1, _2, _3));
     msg_handler_map_.emplace(MsgType::GROUP_CHAT_MSG,
                              std::bind(&ChatService::groupChat, this, _1, _2, _3));
+
+    // 初始化Redis连接
+    if (redis_.connect())
+    {
+        // 设置Redis消息处理回调
+        redis_.init_notify_handler(std::bind(&ChatService::handleRedisSubscribeMessage, this, _1, _2));
+    }
 }
 
 MsgHandler ChatService::getHandler(MsgType msg_type)
@@ -78,6 +85,8 @@ void ChatService::login(const TcpConnectionPtr& conn, json& js, Timestamp time)
 
         user.setState("online");
         user_model_.updateState(user);
+
+        redis_.subscribe(id);
 
         json response;
         response["msgid"] = static_cast<int>(MsgType::LOGIN_MSG_ACK);
@@ -199,6 +208,7 @@ void ChatService::clientCloseException(const TcpConnectionPtr& conn)
     {
         user.setState("offline");
         user_model_.updateState(user);
+        redis_.unsubscribe(user.getId());
         return;
     }
 }
@@ -218,6 +228,14 @@ void ChatService::oneChat(const TcpConnectionPtr& conn, json& js, Timestamp time
         }
     }
     // 用户不在线，存储离线消息
+    User user = user_model_.query(to_id);
+    if (user.getState() == "online")
+    {
+        // 用户在线但不在本服务器上，发送redis消息队列
+        redis_.publish(to_id, js.dump());
+        return;
+    }
+    // 存储离线消息
     offline_message_model_.insert(to_id, js.dump());
 }
 
@@ -270,9 +288,30 @@ void ChatService::groupChat(const TcpConnectionPtr &conn,json &js,Timestamp time
             }
             else
             {
+                User user = user_model_.query(id);
+                if (user.getState() == "online")
+                {
+                    // 用户在线但不在本服务器上，发送redis消息队列
+                    redis_.publish(id, js.dump());
+                    continue;
+                }
                 // 存储离线消息
                 offline_message_model_.insert(id, js.dump());
             }
         }
     }
+}
+
+void ChatService::handleRedisSubscribeMessage(int channel, std::string message)
+{
+    std::lock_guard<std::mutex> lock(conn_mutex_);
+    auto it = user_conn_map_.find(channel);
+    if (it != user_conn_map_.end())
+    {
+        // 用户在线，转发消息
+        it->second->send(message);
+        return;
+    }
+    // 存储离线消息
+    offline_message_model_.insert(channel, message);
 }
